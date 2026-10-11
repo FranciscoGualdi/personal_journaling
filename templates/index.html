@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily Questions</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
+    --border: #e2e0da; --accent: #2f6f5e; --accent-text: #fff; --rec: #c0392b;
+    --ok: #2f6f5e; --warn: #9a6b00; --err: #b23a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151517; --card: #1f1f22; --text: #ececee; --muted: #9a9aa2;
+      --border: #333338; --accent: #5fb39b; --accent-text: #0f1a17; --rec: #e5604f;
+      --ok: #5fb39b; --warn: #e0b04a; --err: #ef7b7b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 1.6rem; }
+  .date { color: var(--muted); }
+  label.lang { color: var(--muted); font-size: .9rem; }
+  select { margin-left: 6px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
+           background: var(--card); color: var(--text); }
+  .banner { padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; border: 1px solid var(--border); background: var(--card); }
+  .banner.warn { border-color: var(--warn); color: var(--warn); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .card.recording { border-color: var(--rec); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rec) 20%, transparent); }
+  .q { font-weight: 600; margin-bottom: 10px; }
+  .q span { color: var(--muted); font-weight: 500; margin-right: 6px; }
+  textarea { width: 100%; min-height: 90px; resize: vertical; padding: 10px 12px; border-radius: 10px;
+             border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+  .interim { color: var(--muted); font-style: italic; min-height: 1.5em; margin-top: 6px; }
+  .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { font: inherit; border-radius: 999px; padding: 8px 16px; cursor: pointer; border: 1px solid var(--border);
+           background: var(--card); color: var(--text); }
+  button.mic.on { background: var(--rec); border-color: var(--rec); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; padding: 12px 24px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .footer { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 20px; }
+  #status.ok { color: var(--ok); } #status.err { color: var(--err); } #status.warn { color: var(--warn); }
+  a { color: var(--accent); }
+  h2 { font-size: 1.05rem; margin: 26px 0 10px; color: var(--muted); font-weight: 600; }
+  textarea#ans-note { min-height: 60px; }
+  #notesList { list-style: none; margin: 14px 0 0; padding: 0; }
+  #notesList li { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--border); }
+  #notesList .time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  #notesList .text { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #notesList .tag { font-size: .75rem; color: var(--warn); flex: none; }
+  #notesList .tag.done { color: var(--ok); }
+  #notesList button { padding: 2px 10px; font-size: .85rem; flex: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Daily Questions</h1>
+      <div class="date" id="date"></div>
+    </div>
+    <label class="lang">Speech language
+      <select id="lang">
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="pt-BR">Português (Brasil)</option>
+        <option value="nl-NL">Nederlands</option>
+      </select>
+    </label>
+  </header>
+
+  <div id="banners"></div>
+
+  <h2>Notes during the day</h2>
+  <section class="card" id="card-note">
+    <textarea id="ans-note" placeholder="Something on your mind? Speak or type it, then add it as a note."></textarea>
+    <div class="interim" id="interim-note"></div>
+    <div class="row">
+      <button class="mic" id="mic-note">🎤 Speak</button>
+      <button id="addNote">Add note</button>
+      <button id="clear-note">Clear</button>
+    </div>
+    <ul id="notesList"></ul>
+  </section>
+
+  <h2>Daily questions</h2>
+  <div id="questions"></div>
+
+  <div class="footer">
+    <button class="primary" id="saveBtn">Save today's journal</button>
+    <span id="status"></span>
+  </div>
+</main>
+
+<script>
+  // ---- Edit your questions here ------------------------------------------
+  const QUESTIONS = [
+    "How am I feeling mentally, physically, and emotionally today?",
+    "What are three small things I am genuinely grateful for today?",
+    "What could you have done better?"
+  ];
+  // -------------------------------------------------------------------------
+
+  const TODAY = "{{ today }}";
+  const ALREADY_SAVED = {{ 'true' if already_saved else 'false' }};
+  const DRAFT_KEY = "daily-draft-" + TODAY;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+
+  $("date").textContent = new Date(TODAY + "T12:00:00").toLocaleDateString(undefined,
+    { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const savedLang = store.get("daily-lang");
+  if (savedLang) $("lang").value = savedLang;
+  $("lang").addEventListener("change", () => { store.set("daily-lang", $("lang").value); stopRec(); });
+
+  function banner(text, cls = "") {
+    const d = document.createElement("div");
+    d.className = "banner " + cls; d.textContent = text; $("banners").appendChild(d);
+  }
+  if (!SR) banner("Speech recognition isn't supported in this browser. Use Chrome or Edge, or type your answers.", "warn");
+  if (ALREADY_SAVED) banner("You already saved today. Saving again overwrites today's file with the current answers and all of today's notes.");
+
+  // ---- Render questions ----------------------------------------------------
+  let draft = {};
+  try { draft = JSON.parse(store.get(DRAFT_KEY) || "{}"); } catch {}
+
+  QUESTIONS.forEach((q, i) => {
+    const card = document.createElement("section");
+    card.className = "card"; card.id = "card-" + i;
+    card.innerHTML = `
+      <div class="q"><span>${i + 1}.</span></div>
+      <textarea id="ans-${i}" placeholder="Press the mic and speak, or type here"></textarea>
+      <div class="interim" id="interim-${i}"></div>
+      <div class="row">
+        <button class="mic" id="mic-${i}">🎤 Speak</button>
+        <button id="clear-${i}">Clear</button>
+      </div>`;
+    card.querySelector(".q").append(q);
+    $("questions").appendChild(card);
+
+    const ta = $("ans-" + i);
+    ta.value = draft[i] || "";
+    ta.addEventListener("input", saveDraft);
+    $("mic-" + i).addEventListener("click", () => activeIdx === i ? stopRec() : startRec(i));
+    $("mic-" + i).disabled = !SR;
+    $("clear-" + i).addEventListener("click", () => clearBox(i));
+  });
+
+  // Clearing while recording must also drop the phrase still being transcribed,
+  // otherwise it is appended back as soon as the browser finalizes it.
+  function clearBox(i) {
+    const wasRecording = activeIdx === i;
+    if (wasRecording) stopRec(true);
+    $("ans-" + i).value = "";
+    $("interim-" + i).textContent = "";
+    saveDraft();
+    if (wasRecording) startRec(i);
+  }
+
+  // ---- Notes (stored by the server in answers/notes-YYYY-MM-DD.json) --------
+  const noteTa = $("ans-note");
+  noteTa.value = draft.note || "";
+  noteTa.addEventListener("input", saveDraft);
+  $("mic-note").addEventListener("click", () => activeIdx === "note" ? stopRec() : startRec("note"));
+  $("mic-note").disabled = !SR;
+  $("addNote").addEventListener("click", addNote);
+  $("clear-note").addEventListener("click", () => clearBox("note"));
+  noteTa.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); }
+  });
+
+  function renderNotes(notes) {
+    const list = $("notesList");
+    list.replaceChildren();
+    notes.forEach((n) => {
+      const li = document.createElement("li");
+      const time = document.createElement("span"); time.className = "time"; time.textContent = n.time;
+      const text = document.createElement("span"); text.className = "text"; text.textContent = n.text;
+      const tag = document.createElement("span");
+      tag.className = "tag" + (n.consolidated ? " done" : "");
+      tag.textContent = n.consolidated ? "saved" : "not saved yet";
+      const del = document.createElement("button"); del.textContent = "Delete";
+      del.addEventListener("click", () => deleteNote(n.id));
+      li.append(time, text, tag, del);
+      list.appendChild(li);
+    });
+  }
+
+  async function loadNotes() {
+    try {
+      const resp = await fetch("/notes");
+      renderNotes((await resp.json()).notes || []);
+    } catch (err) {
+      setStatus("Could not load today's notes: " + err, "err");
+    }
+  }
+
+  async function addNote() {
+    // include words still being transcribed, then drop late results so they don't land in the next note
+    let text = noteTa.value.trim();
+    if (activeIdx === "note") {
+      text = (text + " " + $("interim-note").textContent).trim();
+      stopRec(true);
+    }
+    if (!text) return;
+    $("addNote").disabled = true;
+    try {
+      const resp = await fetch("/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const data = await resp.json();
+      if (!data.ok) { setStatus(data.error || "Could not add the note.", "err"); return; }
+      noteTa.value = ""; saveDraft();
+      await loadNotes();
+    } catch (err) {
+      setStatus("Could not reach the app server: " + err, "err");
+    } finally {
+      $("addNote").disabled = false;
+    }
+  }
+
+  async function deleteNote(id) {
+    if (!confirm("Delete this note?")) return;
+    try {
+      await fetch("/notes/" + encodeURIComponent(id), { method: "DELETE" });
+    } catch (err) {
+      setStatus("Could not reach the app server: " + err, "err");
+    }
+    loadNotes();
+  }
+
+  loadNotes();
+
+  function saveDraft() {
+    const d = { note: noteTa.value };
+    QUESTIONS.forEach((_, i) => d[i] = $("ans-" + i).value);
+    store.set(DRAFT_KEY, JSON.stringify(d));
+  }
+
+  // ---- Speech recognition ----------------------------------------------------
+  // `i` is a question index, or "note" for the note box
+  const REC_KEYS = [...QUESTIONS.keys(), "note"];
+  let rec = null, activeIdx = null, wantRecording = false;
+
+  function startRec(i) {
+    stopRec();
+    activeIdx = i; wantRecording = true;
+    const r = new SR();
+    rec = r;
+    r.lang = $("lang").value;
+    r.continuous = true;
+    r.interimResults = true;
+
+    r.onresult = (e) => {
+      let interim = "";
+      for (let k = e.resultIndex; k < e.results.length; k++) {
+        const res = e.results[k];
+        if (res.isFinal) {
+          const ta = $("ans-" + i);
+          const t = res[0].transcript.trim();
+          if (t) ta.value = (ta.value.trim() ? ta.value.trim() + " " : "") + t;
+          saveDraft();
+        } else {
+          interim += res[0].transcript;
+        }
+      }
+      $("interim-" + i).textContent = interim;
+    };
+    r.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setStatus("Microphone access was blocked. Allow it in the browser's address bar.", "err");
+        wantRecording = false;
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        setStatus("Speech error: " + e.error, "err");
+      }
+    };
+    // Chrome stops after a pause; restart while the user still wants to record
+    r.onend = () => {
+      if (wantRecording && activeIdx === i && rec === r) {
+        try { r.start(); return; } catch {}
+      }
+      $("interim-" + i).textContent = "";
+      if (rec === r) { activeIdx = null; updateButtons(); }
+    };
+
+    r.start();
+    updateButtons();
+  }
+
+  function stopRec(discardPending = false) {
+    wantRecording = false;
+    if (rec && discardPending) { rec.onresult = null; try { rec.abort(); } catch {} }
+    else if (rec) { try { rec.stop(); } catch {} }
+    if (activeIdx !== null) $("interim-" + activeIdx).textContent = "";
+    activeIdx = null;
+    updateButtons();
+  }
+
+  function updateButtons() {
+    REC_KEYS.forEach((i) => {
+      const on = i === activeIdx;
+      $("mic-" + i).classList.toggle("on", on);
+      $("mic-" + i).textContent = on ? "⏹ Stop" : "🎤 Speak";
+      $("card-" + i).classList.toggle("recording", on);
+    });
+  }
+
+  // ---- Save --------------------------------------------------------------------
+  function setStatus(text, cls = "") { $("status").className = cls; $("status").textContent = text; }
+
+  $("saveBtn").addEventListener("click", async () => {
+    if (activeIdx === "note" || noteTa.value.trim()) await addNote();  // don't leave a half-written note behind
+    stopRec();
+    const answers = QUESTIONS.map((q, i) => ({ question: q, answer: $("ans-" + i).value }));
+    $("saveBtn").disabled = true;
+    setStatus("Saving…");
+    try {
+      const resp = await fetch("/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers })
+      });
+      const data = await resp.json();
+      if (!data.ok) { setStatus(data.error || "Save failed.", "err"); return; }
+      if (data.drive) {
+        $("status").className = "ok";
+        $("status").textContent = `Saved to Google Drive as ${data.filename}. `;
+        if (data.link) {
+          const a = document.createElement("a");
+          a.href = data.link; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Open";
+          $("status").appendChild(a);
+        }
+      } else {
+        setStatus(`Saved locally as ${data.filename}. ${data.drive_error || ""}`, "warn");
+      }
+      loadNotes();  // notes are now marked as saved
+    } catch (err) {
+      setStatus("Could not reach the app server: " + err, "err");
+    } finally {
+      $("saveBtn").disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
