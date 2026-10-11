@@ -109,6 +109,7 @@
   const ALREADY_SAVED = {{ 'true' if already_saved else 'false' }};
   const DRAFT_KEY = "daily-draft-" + TODAY;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const $ = (id) => document.getElementById(id);
   const store = {
@@ -171,7 +172,11 @@
   const noteTa = $("ans-note");
   noteTa.value = draft.note || "";
   noteTa.addEventListener("input", saveDraft);
-  $("mic-note").addEventListener("click", () => activeIdx === "note" ? stopRec() : startRec("note"));
+  // Stop on the note mic adds the note once the browser has delivered the final transcript (see r.onend)
+  $("mic-note").addEventListener("click", () => {
+    if (activeIdx === "note") { rec.addNoteOnEnd = true; stopRec(); }
+    else startRec("note");
+  });
   $("mic-note").disabled = !SR;
   $("addNote").addEventListener("click", addNote);
   $("clear-note").addEventListener("click", () => clearBox("note"));
@@ -260,14 +265,23 @@
     const r = new SR();
     rec = r;
     r.lang = $("lang").value;
-    r.continuous = true;
+    // Mobile browsers re-send earlier phrases in continuous mode, which duplicates words.
+    // There we listen one phrase at a time; onend restarts it while the user keeps recording.
+    r.continuous = !IS_MOBILE;
     r.interimResults = true;
+
+    // Number of final results already appended in this session. Phones can deliver the
+    // same final result more than once, so never trust e.resultIndex alone.
+    let handled = 0;
+    r.onstart = () => { handled = 0; };  // every (re)start is a new session with fresh results
 
     r.onresult = (e) => {
       let interim = "";
-      for (let k = e.resultIndex; k < e.results.length; k++) {
+      for (let k = 0; k < e.results.length; k++) {
         const res = e.results[k];
         if (res.isFinal) {
+          if (k < handled) continue;
+          handled = k + 1;
           const ta = $("ans-" + i);
           const t = res[0].transcript.trim();
           if (t) ta.value = (ta.value.trim() ? ta.value.trim() + " " : "") + t;
@@ -293,6 +307,7 @@
       }
       $("interim-" + i).textContent = "";
       if (rec === r) { activeIdx = null; updateButtons(); }
+      if (r.addNoteOnEnd) addNote();
     };
 
     r.start();
@@ -312,7 +327,7 @@
     REC_KEYS.forEach((i) => {
       const on = i === activeIdx;
       $("mic-" + i).classList.toggle("on", on);
-      $("mic-" + i).textContent = on ? "⏹ Stop" : "🎤 Speak";
+      $("mic-" + i).textContent = on ? (i === "note" ? "⏹ Stop & add" : "⏹ Stop") : "🎤 Speak";
       $("card-" + i).classList.toggle("recording", on);
     });
   }

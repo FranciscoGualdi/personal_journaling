@@ -9,7 +9,7 @@ everything from that day goes into one text file, which is kept locally and uplo
 ### Your day with the app
 
 1. **During the day: add notes.** Open the page, press **🎤 Speak** in the *Notes during the day* box
-   (or just type), then press **Add note**. The note gets the current time (e.g. `14:32`) and is written
+   and talk, then press **⏹ Stop & add**. Or type the note and press **Add note**. The note gets the current time (e.g. `14:32`) and is written
    straight to a file on your computer. Nothing goes to Google Drive yet. Add as many notes as you like.
    You can close the browser between notes, because they're stored on disk, not in the page.
 2. **In the evening: answer the questions.** Each question has its own mic button. Speak, stop, and fix the
@@ -72,7 +72,8 @@ Notes during the day
 - **Speech to text happens in the browser**, using its built-in Web Speech API. The server only ever
   receives text. That's why Chrome or Edge is required, and why the speech language picker is on the page.
 - **The Flask server** (`app.py`) serves the page, stores notes, builds the daily text file and
-  uploads it. It only listens on `127.0.0.1`, so other devices on your network can't reach it.
+  uploads it. It only listens on `127.0.0.1`, so other devices on your network can't reach it
+  (to use it from your phone, see [setup step 4](#4-use-it-from-your-phone-optional-with-tailscale)).
 - **Google Drive access** uses OAuth with the narrow `drive.file` permission. The app can see only the
   folder and files it created itself, not the rest of your Drive.
 
@@ -129,10 +130,49 @@ The first time, a browser window opens to log in to Google; afterwards `token.js
 Then open **http://localhost:5000** in **Chrome or Edge** and allow microphone access.
 Firefox and Safari don't support the speech recognition used here, but you can still type.
 
+### 4. Use it from your phone (optional, with Tailscale)
+
+Two things stop the phone from simply connecting to your computer. The app only accepts connections
+from the computer itself. And browsers only allow the microphone on secure (`https://`) pages, apart
+from `localhost`, so plain `http://192.168.x.x:5000` over Wi-Fi would load but the mic wouldn't work.
+
+[Tailscale](https://tailscale.com) solves both without any change to the app. It's a free private
+network between your own devices. Its `serve` command gives your computer an `https://` address that
+only your devices can open, and passes requests on to the app on `localhost`. Your journal is never
+on the public internet.
+
+1. Install Tailscale on your computer and your phone, and sign in with the same account on both.
+2. In the [Tailscale admin console](https://login.tailscale.com/admin/dns), turn on **MagicDNS** and
+   **HTTPS Certificates**.
+3. Start the app on the computer as usual: `uv run app.py`.
+4. In a second terminal, run:
+
+   ```bash
+   tailscale serve --bg 5000
+   ```
+
+   It prints your address, something like `https://your-pc.your-tailnet.ts.net`. The `--bg` flag keeps
+   it running in the background, even after restarts. To stop sharing: `tailscale serve --https=443 off`.
+5. On the phone, make sure Tailscale is connected. Open the address in **Chrome** (Android) or
+   **Safari** (iPhone) and allow microphone access.
+6. Optional: use the browser's **Add to Home Screen** so it opens like an app.
+
+Good to know:
+
+- **Your computer must be on and awake** (and the app running) for the phone to connect. Set Windows not to
+  sleep while plugged in if you want to use it during the day.
+- **Unsaved answers stay in the browser you typed them in.** Notes and saved journals live on the computer,
+  so the phone and the computer show the same ones.
+- **Speech recognition works best in Chrome on Android.** Safari on iPhone supports it but is less reliable.
+  Typing always works.
+- **Don't change the app to listen on `0.0.0.0`, or use a public tunnel** such as ngrok, as a shortcut.
+  The app has no password, so anyone on your Wi-Fi or on the internet could read your journal.
+
 ## Tips
 
 - **Speech language**: pick it at the top of the page (English, Portuguese, Dutch). The choice is remembered.
-- **Ctrl+Enter** in the note box adds the note.
+- **⏹ Stop & add** on the notes mic adds the note straight away. No need to press **Add note**.
+  For typed notes, **Ctrl+Enter** in the note box adds the note.
 - If the note box still has text when you press **Save today's journal**, it's added as a note first.
 - **Delete** removes a note. If the note was already saved, save again to remove it from the journal file.
 - **Drive folder name**: set the `DRIVE_FOLDER_NAME` environment variable (default: `Daily Answers`).
